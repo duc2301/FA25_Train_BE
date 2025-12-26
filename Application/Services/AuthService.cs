@@ -8,6 +8,7 @@ using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -149,22 +150,45 @@ namespace Application.Services
             try
             {
                 var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
-
                 var user = await _unitOfWork.UserRepository.FindAsync(u => u.Email == payload.Email);
+                var hasher = new PasswordHasher<User>();
+
+                string generatedPassword = null;
 
                 if (user == null)
                 {
+                    generatedPassword = GenerateSecurePassword(12);
+
                     user = new User
                     {
                         UserId = Guid.NewGuid(),
                         Username = payload.Name ?? payload.Email,
                         Email = payload.Email,
-                        Password = string.Empty,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow
                     };
+
+                    user.Password = hasher.HashPassword(user, generatedPassword);
+
                     await _unitOfWork.UserRepository.CreateAsync(user);
                     await _unitOfWork.SaveChangesAsync();
+                }
+                else if (string.IsNullOrEmpty(user.Password))
+                {
+                    generatedPassword = GenerateSecurePassword(12);
+                    user.Password = hasher.HashPassword(user, generatedPassword);
+                    _unitOfWork.UserRepository.Update(user);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                if (!string.IsNullOrEmpty(generatedPassword))
+                {
+                    var emailBody = $@"
+                        <p>Your account was created/updated via Google login.</p>
+                        <p><strong>Email:</strong> {payload.Email}</p>
+                        <p><strong>Password:</strong> {generatedPassword}</p>
+                        <p>Please change your password after logging in.</p>";
+                    await _emailService.SendEmailAsync(payload.Email, "Your account password", emailBody);
                 }
 
                 var token = _jwtService.GenerateToken(user);
@@ -174,6 +198,18 @@ namespace Application.Services
             {
                 return new ApiResponse { IsSuccess = false, Message = "Token Google không hợp lệ" };
             }
+        }
+
+        private static string GenerateSecurePassword(int length)
+        {
+            const string allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+";
+            var chars = new char[length];
+            for (int i = 0; i < length; i++)
+            {
+                int idx = RandomNumberGenerator.GetInt32(0, allowed.Length);
+                chars[i] = allowed[idx];
+            }
+            return new string(chars);
         }
     }
 }
