@@ -4,6 +4,7 @@ using Application.Interfaces.Service;
 using Application.Interfaces.UnitOfwork;
 using AutoMapper;
 using Domain.Entities;
+using Microsoft.AspNetCore.Identity;
 
 namespace Application.Services
 {
@@ -29,6 +30,12 @@ namespace Application.Services
             entity.UserId = Guid.NewGuid();
             entity.IsActive = true;
             entity.CreatedAt = DateTime.UtcNow;
+
+            if (!string.IsNullOrEmpty(requestDTO.Password))
+            {
+                var hasher = new PasswordHasher<User>();
+                entity.Password = hasher.HashPassword(entity, requestDTO.Password);
+            }
 
             //Reflect to DB
             await _unitOfWork.UserRepository.CreateAsync(entity);
