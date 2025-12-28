@@ -91,6 +91,12 @@ namespace Application.Services
             if (userInDb != null)
             {
                 _mapper.Map(requestDTO, userInDb);
+
+                if (!string.IsNullOrEmpty(requestDTO.Password))
+                {
+                    var hasher = new PasswordHasher<User>();
+                    userInDb.Password = hasher.HashPassword(userInDb, requestDTO.Password);
+                }
                 userInDb.UpdatedAt = DateTime.UtcNow;
 
                 //Reflect to DB

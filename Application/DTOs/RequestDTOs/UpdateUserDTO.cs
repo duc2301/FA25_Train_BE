@@ -19,6 +19,13 @@ namespace Application.DTOs.RequestDTOs
         public string Email { get; set; } = null!;
 
         /// <summary>
+        /// Password
+        /// </summary>
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+        public string Password { get; set; } = null!;
+
+        /// <summary>
         /// Phone Number
         /// </summary>
         [Phone(ErrorMessage = "Invalid phone number format")]
